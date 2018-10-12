@@ -22,6 +22,14 @@ Kubeadm can be used to install the kubernetes components on each instance and co
 
 Kubernetes can run with all components (__api-server__, __scheduler__, __kube-controller-manager__, __kube-proxy__, etc. ) deployed as pods - apart from the __kublet__ which is run as a __systemd__ service. This is because kubelet defines the __cri__ implementation such as __docker__ for managing the pods container life-cycle.. The K8s system components are defined in ```/etc/kubernetes/manifests/``` and have ```hostNetwork: true``` defined in their specs as the cni container networking is configured on top of this base system. These pods do not require CNI based networking.
 
+The whole __cluster pod network range__ gets subdivided and associated with each node in the cluster as __node pod network range__. For example in a 2 node cluster:
+```
+
+10.244.0.0./16  =>  Node1: 10.244.0.0/24 (node container IP range: 10.244.0.0 – 10.244.0.255) (255 IPs)
+                    Node2: 10.244.0.1/24 (node container IP range: 10.244.0.1 – 10.244.1.255) (255 IPs)
+```
+
+
 
 
 

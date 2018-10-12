@@ -75,6 +75,7 @@ function install-kubernetes() {
     echo "mkdir -p $HOME/.kube"
     echo "sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
     echo "sudo chown $(id -u):$(id -g) $HOME/.kube/config"
+    echo "export KUBECONFIG=$HOME/.kube/config"
     echo "kubectl get nodes"
 
     # install kubeadm - run on worker nodes
@@ -99,6 +100,15 @@ EOF
     chmod u+x kubeadm-install.sh 
 }
 
+function get-master-node-cidr() {
+    local mn_cidr=$(kubectl get node "${ID}-master" -ojsonpath='{.spec.podCIDR}')
+    echo "mn_cidr"
+}
+
+function get-worker-node-cidr() {
+    local wn_cidr=$(kubectl get node "${ID}-worker}" -ojsonpath='{.spec.podCIDR}')
+    echo "wn_cidr"
+}
 
 $@
 
