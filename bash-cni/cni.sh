@@ -13,7 +13,9 @@ function get-gce-support() {
     chmod u+rwx gke.sh
 }
 
-ID="${NW_NAME:-k8s}"
+ID="k8s"
+# MACHINE_TYPE="f1-micro"
+MACHINE_TYPE="g1-small"
 
 function create-infra() {
     echo "Creating infra..."
@@ -23,11 +25,13 @@ function create-infra() {
     # Create nw with subnet in each region.
     # Create routes to direct traffic between subnets.
     # Create routes to direct external trafic to degault internet gateway.
-    gcloud compute networks create "${ID}" --zone "${zone}" 
+    
+    echo "Create VCN."
+    gcloud compute networks create "${ID}-vcn"
 
+    echo "Create firewall-rules."
     gcloud compute firewall-rules create "${ID}-allow-all" \
-        --zone "${zone}" \
-        --network "${ID}" \
+        --network "${ID}-vcn" \
         --action allow \
         --direction ingress \
         --rules all \
@@ -37,65 +41,76 @@ function create-infra() {
     # Instances ---------------------------------------------------------------
 
     # Configure master with IP forwarding.
+    echo "Create master instance."
     gcloud compute instances create "${ID}-master" \
         --zone "${zone}" \
-        --image-family ubuntu-1604-lts \
+        --machine-type "${MACHINE_TYPE}" \
         --image-project ubuntu-os-cloud \
-        --network "${ID}" \
+        --image-family ubuntu-1604-lts \
+        --network "${ID}-vcn" \
         --can-ip-forward
 
     # Configure worker with IP forwarding.
+    echo "Create worker instance."
     gcloud compute instances create "${ID}-worker" \
         --zone "${zone}" \
-        --image-family ubuntu-1604-lts \
+        --machine-type "${MACHINE_TYPE}" \
         --image-project ubuntu-os-cloud \
-        --network k8s \
+        --image-family ubuntu-1604-lts \
+        --network "${ID}-vcn" \
         --can-ip-forward
 }
 
 function delete-infra() {
     echo "Deleting infra..."
-    gcloud compute instances delete "${ID}-worker"
-    gcloud compute instances delete "${ID}-master"
-    gcloud compute firewall-rules delete "${ID}-allow-all"
-    gcloud compute networks delete "${ID}"  
+    gcloud -q compute instances delete "${ID}-worker"
+    gcloud -q compute instances delete "${ID}-master"
+    gcloud -q compute firewall-rules delete "${ID}-allow-all"
+    gcloud -q compute networks delete "${ID}-vcn"  
 }
 
 function install-kubernetes() {
     # generate kubeadm installer
     # 
-    generate-kubeadm-install
+    # generate-kubeadm-install
 
-    # instal kubeadm - run on master node
+    # Install kubeadm - on master node and initialise.
     # 
     gcloud compute scp --zone "${zone}" kubeadm-install.sh "${ID}-master":./
-    gcloud compute ssh --zone "${zone}" --zone "${zone}" --command ./kubeadm-install.sh
-    echo "ssh to master node and run: "
-    echo "sudo kubeadm init --pod-network-cidr=10.244.0.0/16"
-    echo "mkdir -p $HOME/.kube"
-    echo "sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
-    echo "sudo chown $(id -u):$(id -g) $HOME/.kube/config"
-    echo "export KUBECONFIG=$HOME/.kube/config"
-    echo "kubectl get nodes"
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command ./kubeadm-install.sh
 
-    # install kubeadm - run on worker nodes
+    gcloud compute scp --zone "${zone}" kubernetes-install.sh "${ID}-master":./
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command ./kubernetes-install.sh
+
+    local join_cmd=$(gcloud compute ssh --zone "${zone}" "${ID}-master" --command 'sudo kubeadm token create --print-join-command') 
+
+
+    # Install kubeadm - on worker nodes and join to master.
     # 
     gcloud compute scp --zone "${zone}" kubeadm-install.sh "${ID}-worker":./
-    gcloud compute ssh --zone "${zone}""${instance}" --command ./kubeadm-install.sh 
-    echo "ssh to master node and run: "
-    echo "execute ouput of 'kubeadm init' from master to join..."
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command ./kubeadm-install.sh
+
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo ${join_cmd}"
+
+    # Check cluster node status
+    # 
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "kubectl get nodes"
 }
 
 function generate-kubeadm-install() {
       cat > kubeadm-install.sh <<EOF
 #!/bin/bash
-sudo apt-get update
-sudo apt-get install -y docker.io apt-transport-https curl jq nmap iproute2
-sudo su
-curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-cat > /etc/apt/sources.list.d/kubernetes.list <<EOF2
-deb http://apt.kubernetes.io/ kubernetes-xenial main
-EOF2
+
+function install() {
+    # Update and install utils.
+    sudo apt-get update
+    sudo apt-get install -y docker.io apt-transport-https curl jq nmap iproute2
+    # Configure kubernetes apt repo.
+    sudo bash -c "curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -"
+    local kubernetes="deb http://apt.kubernetes.io/ kubernetes-xenial main"
+    local apts="/etc/apt/sources.list"
+    sudo bash -c "grep -q -F '${kubernetes}' ${apts} || echo ${kubernetes} >> ${apts}"
+} && install
 EOF
     chmod u+x kubeadm-install.sh 
 }
@@ -108,6 +123,16 @@ function get-master-node-cidr() {
 function get-worker-node-cidr() {
     local wn_cidr=$(kubectl get node "${ID}-worker}" -ojsonpath='{.spec.podCIDR}')
     echo "wn_cidr"
+}
+
+
+function ssh-master() {
+    gcloud compute ssh --zone "${zone}" "${ID}-master"
+}
+
+
+function ssh-worker() {
+    gcloud compute ssh --zone "${zone}" "${ID}-worker"
 }
 
 $@

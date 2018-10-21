@@ -32,9 +32,6 @@ The whole __cluster pod network range__ gets subdivided and associated with each
 
 
 
-
-
-
 ---
 
 #### Kubernetes Docs
@@ -44,6 +41,7 @@ The whole __cluster pod network range__ gets subdivided and associated with each
 * [CNI Plugin List](https://kubernetes.io/docs/concepts/cluster-administration/networking/#how-to-implement-the-kubernetes-networking-model)
 
 * [Kubeadm](https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/)
+* [Install Kubeadm](https://kubernetes.io/docs/setup/independent/install-kubeadm/)
 * [Kubeadm, Hops, and, Kubespray](https://www.altoros.com/blog/a-multitude-of-kubernetes-deployment-tools-kubespray-kops-and-kubeadm/)
 
 * [Kubelet](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/)
