@@ -31,13 +31,32 @@ Kubernetes can run with all components (__api-server__, __scheduler__, __kube-co
 The whole __cluster pod network range__ gets __subdivided and associated with each node in the cluster__ as __node pod network ranges__. For example in a 2 node cluster:
 ```
 10.244.0.0./16  =>  Node1: 10.244.0.0/24 (node container IP range: 10.244.0.0 – 10.244.0.255) (255 IPs)
-                    Node2: 10.244.0.1/24 (node container IP range: 10.244.0.1 – 10.244.1.255) (255 IPs)
+                    Node2: 10.244.1.0/24 (node container IP range: 10.244.1.0 – 10.244.1.255) (255 IPs)
 ```
 
 The __PodCIDRRange__ for a node can be obtained as follows:
 ```
 ./cni.sh kubectl describe node <node-name> | grep PodCIDR
 ```
+
+#### CNI Config File
+
+TODO
+
+#### Network Bridge
+
+Each node needs a __network bridge__ to link the host with it's pods. A network bridge is a special device that aggregates network packets from multiple network interfaces. 
+
+The __CNI Plugin__ is responsible for adding networking interfaces for each container to the bridge so that they can communicate.
+
+A bridge can have its own __MAC and IP address__ , so each container sees the bridges as another device on the network.
+
+An IP address must be reserved for each bridge on each node. For example, in a 2 node cluster:
+```
+10.244.0.0./16  =>  Node1 Subnet: 10.244.0.0/24, Node1 Bridge IP: 10.244.0.1/32
+                    Node2 Subnet: 10.244.1.0/24, Node2 Bridge IP: 10.244.1.1/32 
+```
+
 
 
 
@@ -59,6 +78,8 @@ The __PodCIDRRange__ for a node can be obtained as follows:
 * [Kubelet](https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/)
 * [kubectl](https://kubernetes.io/docs/reference/kubectl/kubectl/)
 * [Kubectl overview](https://kubernetes.io/docs/reference/kubectl/overview/)
+
+* [Network Bridge](https://en.wikipedia.org/wiki/Bridging_(networking))
 
 ---
 

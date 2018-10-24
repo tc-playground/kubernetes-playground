@@ -104,6 +104,26 @@ function install-cni-config() {
     gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mv cni-worker-config.json ${cni_dir}"
 }
 
+
+function create-nw-bridge() {
+    local name=${1:-"cni0"}
+
+    local master_bridge_ip="10.244.0.1/24"
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo apt install -y bridge-utils"
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo brctl addbr ${name}"
+    # gcloud compute ssh --zone "${zone}" "${ID}-master" --command "ip link add name ${name} type bridge"
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo ip link set ${name} up"
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo ip addr add ${master_bridge_ip} dev ${name}"
+
+    local worker_bridge_ip="10.244.1.1/24"
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo apt install -y bridge-utils"
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo brctl addbr ${name}"
+    # gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "ip link add name ${name} type bridge"
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo ip link set ${name} up"
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo ip addr add ${worker_bridge_ip} dev ${name}"
+}
+
+
 function get-node-pod-cidr() {
     local node=${1:-"master"}
     local node_pod_cidr=$(kubectl get node "${ID}-${node}" -ojsonpath='{.spec.podCIDR}')
