@@ -1,17 +1,14 @@
 #!/bin/bash
 
+# Tools 
+# 
+# CIDR Calculator : https://www.ipaddressguide.com/cidr
+
+
 project=$(gcloud info | grep 'project' | cut -d "[" -f2 | cut -d "]" -f1)
 region=$(gcloud info | grep 'region' | cut -d "[" -f2 | cut -d "]" -f1)
 zone=$(gcloud info | grep 'zone' | cut -d "[" -f2 | cut -d "]" -f1)
 
-echo "Project: ${project}"
-echo "Region : ${region}"
-echo "Zone   : ${zone}"
-
-function get-gce-support() {
-    curl -O https://raw.githubusercontent.com/templecloud/temos/master/environments/k8s-gke/gke.sh
-    chmod u+rwx gke.sh
-}
 
 ID="k8s"
 # MACHINE_TYPE="f1-micro"
@@ -70,10 +67,6 @@ function delete-infra() {
 }
 
 function install-kubernetes() {
-    # generate kubeadm installer
-    # 
-    # generate-kubeadm-install
-
     # Install kubeadm - on master node and initialise.
     # 
     gcloud compute scp --zone "${zone}" kubeadm-install.sh "${ID}-master":./
@@ -97,42 +90,69 @@ function install-kubernetes() {
     gcloud compute ssh --zone "${zone}" "${ID}-master" --command "kubectl get nodes"
 }
 
-function generate-kubeadm-install() {
-      cat > kubeadm-install.sh <<EOF
-#!/bin/bash
+function install-cni-config() {
+    local cni_dir="/etc/cni/net.d/"
 
-function install() {
-    # Update and install utils.
-    sudo apt-get update
-    sudo apt-get install -y docker.io apt-transport-https curl jq nmap iproute2
-    # Configure kubernetes apt repo.
-    sudo bash -c "curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -"
-    local kubernetes="deb http://apt.kubernetes.io/ kubernetes-xenial main"
-    local apts="/etc/apt/sources.list"
-    sudo bash -c "grep -q -F '${kubernetes}' ${apts} || echo ${kubernetes} >> ${apts}"
-} && install
-EOF
-    chmod u+x kubeadm-install.sh 
+    # install on master - TODO: generate file.
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mkdir -p ${cni_dir}"
+    gcloud compute scp --zone "${zone}" cni-master-config.json "${ID}-master":.
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mv cni-master-config.json ${cni_dir}"
+
+    # install on worker - TODO: generate file.
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mkdir -p ${cni_dir}"
+    gcloud compute scp --zone "${zone}" cni-worker-config.json "${ID}-worker":.
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mv cni-worker-config.json ${cni_dir}"
 }
 
+function get-node-pod-cidr() {
+    local node=${1:-"master"}
+    local node_pod_cidr=$(kubectl get node "${ID}-${node}" -ojsonpath='{.spec.podCIDR}')
+    echo "${node_pod_cidr}"
+}
+
+# 2-node cluster pod cluster cidr '10.244.0.0/16' => 10.244.0.0/24
+# Allows 256 nodes in cluster.
+# Allows 256 pods on node.
 function get-master-node-cidr() {
-    local mn_cidr=$(kubectl get node "${ID}-master" -ojsonpath='{.spec.podCIDR}')
-    echo "mn_cidr"
+    local mn_cidr=$(get-node-pod-cidr)
+    echo "${mn_cidr}"
 }
 
+# 2-node cluster pod cluster cidr '10.244.0.0/16' => 10.244.1.0/24
+# Allows 256 nodes in cluster.
+# Allows 256 pods on node.
 function get-worker-node-cidr() {
-    local wn_cidr=$(kubectl get node "${ID}-worker}" -ojsonpath='{.spec.podCIDR}')
-    echo "wn_cidr"
+    local mn_cidr=$(get-node-pod-cidr worker)
+    echo "${mn_cidr}"
 }
 
+function ls-k8s-node-manifests() {
+    local node=${1:-"master"}
+    gcloud compute ssh --zone "${zone}" "${ID}-${node}" --command "ls /etc/kubernetes/manifests"
+}
 
 function ssh-master() {
     gcloud compute ssh --zone "${zone}" "${ID}-master"
 }
 
-
 function ssh-worker() {
     gcloud compute ssh --zone "${zone}" "${ID}-worker"
+}
+
+function kubectl() {
+    local cmd=$@
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "kubectl ${cmd}"
+}
+
+function gke-env() {
+    echo "Project: ${project}"
+    echo "Region : ${region}"
+    echo "Zone   : ${zone}"
+}
+
+function get-gce-support() {
+    curl -O https://raw.githubusercontent.com/templecloud/temos/master/environments/k8s-gke/gke.sh
+    chmod u+rwx gke.sh
 }
 
 $@

@@ -1,9 +1,11 @@
 #!/bin/bash
 
+export POD_NETWORK_CIDR="10.244.0.0/16"
+
 function install() {
     # Initialise kubeadm.
     # sudo kubeadm config images pull
-    sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+    sudo kubeadm init --pod-network-cidr="${POD_NETWORK_CIDR}"
     
     # Configure kubeconfig.
     mkdir -p $HOME/.kube
