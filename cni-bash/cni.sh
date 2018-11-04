@@ -77,7 +77,6 @@ function install-kubernetes() {
 
     local join_cmd=$(gcloud compute ssh --zone "${zone}" "${ID}-master" --command 'sudo kubeadm token create --print-join-command') 
 
-
     # Install kubeadm - on worker nodes and join to master.
     # 
     gcloud compute scp --zone "${zone}" kubeadm-install.sh "${ID}-worker":./
@@ -91,19 +90,33 @@ function install-kubernetes() {
 }
 
 function install-cni-config() {
-    local cni_dir="/etc/cni/net.d/"
+    local cni_dir="/opt/cni/bin"
 
     # install on master - TODO: generate file.
     gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mkdir -p ${cni_dir}"
     gcloud compute scp --zone "${zone}" cni-master-config.json "${ID}-master":.
-    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mv cni-master-config.json ${cni_dir}"
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mv cni-master-config.json ${cni_dir}/"
 
     # install on worker - TODO: generate file.
     gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mkdir -p ${cni_dir}"
     gcloud compute scp --zone "${zone}" cni-worker-config.json "${ID}-worker":.
-    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mv cni-worker-config.json ${cni_dir}"
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mv cni-worker-config.json ${cni_dir}/"
 }
 
+
+function install-cni-plugin() {
+    local cni_dir="/etc/cni/net.d/"
+
+    # install on master - TODO: generate file.
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mkdir -p ${cni_dir}"
+    gcloud compute scp --zone "${zone}" bash-cni.sh "${ID}-master":.
+    gcloud compute ssh --zone "${zone}" "${ID}-master" --command "sudo mv bash-cni.sh ${cni_dir}/bash-cni"
+
+    # install on worker - TODO: generate file.
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mkdir -p ${cni_dir}"
+    gcloud compute scp --zone "${zone}" cni-worker-config.json "${ID}-worker":.
+    gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo mv bash-cni.sh ${cni_dir}/bach-sni"
+}
 
 function create-nw-bridge() {
     local name=${1:-"cni0"}
@@ -122,7 +135,6 @@ function create-nw-bridge() {
     gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo ip link set ${name} up"
     gcloud compute ssh --zone "${zone}" "${ID}-worker" --command "sudo ip addr add ${worker_bridge_ip} dev ${name}"
 }
-
 
 function get-node-pod-cidr() {
     local node=${1:-"master"}

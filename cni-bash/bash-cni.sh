@@ -75,6 +75,8 @@ function add() {
 	#
 	rand=$(tr -dc 'A-F0-9' < /dev/urandom | head -c4)
 	host_if_name="veth$rand"
+	# Configur the interface 
+	# 
 	# The interfaces are created as an interconnected pair. Packages transmitted to one of 
 	# the devices in the pair are immediately received on the other device. CNI_IFNAME 
 	# is provided by the caller and specifies the name of the network interface that will 
@@ -93,13 +95,16 @@ function add() {
 	# in the host namespace will be able to communicate directly with the 
 	# container interface. All communication must be done only via the host pair.
 	ip link set $CNI_IFNAME netns $CNI_CONTAINERID
-	# Assign the previously allocated container IP to the interface.
+	# Assign the previously allocated container IP to the interface. 
+	# NB: 'exec' is used to 'shell in' to the other network namespace. 
 	ip netns exec $CNI_CONTAINERID ip link set $CNI_IFNAME up
 	ip netns exec $CNI_CONTAINERID ip addr add $container_ip/$subnet_mask_size dev $CNI_IFNAME
     # Create a default route that redirects all traffic to the default gateway,
 	# which is the IP address of the cni0 bridge).
 	ip netns exec $CNI_CONTAINERID ip route add default via $gw_ip dev $CNI_IFNAME 
 
+	# Return the information to the caller
+	# 
 	mac=$(ip netns exec $CNI_CONTAINERID ip link show eth0 | awk '/ether/ {print $2}')
 echo "{
   \"cniVersion\": \"0.3.1\",

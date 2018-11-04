@@ -79,19 +79,44 @@ CNI plug-ins support four commands: __ADD__, __DEL__, __GET__, and __VERSION__.
 
 #### ADD
 
+Is executed each time after a container is created, and it is responsible for allocating a network interface to the container.
+
+1. Allocate a new IP for the container that is free from the container subnet IP range. This often handled by an _IPAM_ module.
+
+2. Create a new network namespace via $CNI_NETNS environment variable (which is set by Kubelet before invocation of ADD). The __ip__ tool assumes the namespace is located in the ```/var/run/netns/``` folder. A symbolic link is create from the $CNI_NETWORK to achieve this.
+
+3. An interconnected pair of VETH interfaces is created. Packages transmitted to one of the devices in the pair are immediately received on the other device. The first interface (name assigned by plugin - usually 'eth0') that will be assigned to the container in the container namespace; the second interface (name assigned dynamically) remains in the host namespace and should be added to the bridge.
+
+4. Configure an IP on the bridge. All the containers will use as their gateway to communicate with the outside world.
+
+5. Move the container interface to the new network namespace.
+
+6. Assign the interface the IP generated in step 1.
+
+7. Create a default route that redirects all traffic to the __default gateway__ - which is the IP address of the cni0 bridge).
+
+8. Return the information to the caller.
+
+* A __bridge__ is analogous to a network switch.
+* A __container__ is analogous to a device that we plug in to the switch.
+* A __network interface pair__ is analogous to a wire-one end we plug into a device and another to the network switch.
+
+Any device will always have an IP address, and we will also allocate an IP for the container network interface. The port where we plug in the other end of the wire doesn’t have its own IP, and we don’t allocate an IP for the host interface either. However, a port in a switch always has its own MAC address (check this StackExchange thread if you are curious why it is the case), and similarly our host interface has a MAC.
+
+A network switch, as well as a bridge, are both holding a list of MAC addresses connected to each of their ports. They use this list to figure out which port they need to forward an incoming network package. This way, they prevent flooding everybody else with unnecessary traffic. Some switches (layer 3 switches) can assign an IP to one of their ports and use this port to connect to the external networks. That is something we are doing with our bridge, as well. We’ve configured an IP on the bridge, which all the containers will use as their gateway to communicate with the outside world.
+
+
 #### DEL
+
+Removes the IP address of the container from the __reserved_ips__ list. Note that we don’t have to delete any network interfaces, because they will be deleted automatically after the container namespace will be removed
 
 #### GET
 
+Is intended to return the information about some previously created container, but it is not used by kubelet, and we don’t implement it at all.
+
 #### VERSION
 
-
-
-
-
-
-
-
+Just prints the supported CNI versions.
 
 
 ---
