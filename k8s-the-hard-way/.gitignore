@@ -1,0 +1,20 @@
+
+# Do not checkin CA generated files
+**/ca-config.json
+**/*-csr.json
+**/*.csr
+**/*.-key.pem
+**/*.pem
+**/*.kubeconfig
+**/encryption-config.yaml
+**/install-etcd.sh
+**/install-kube-api-server.sh
+**/install-kube-controller-manager.sh
+**/install-kube-scheduler.sh
+**/install-nginx-script.sh
+**/create-api-server-kubelet-rbac-script.sh
+**/install-cni-networking.sh
+install-cri-containerd.sh
+**/install-kubelet.sh
+**/install-worker-base.sh
+**/install-kube-proxy.sh
