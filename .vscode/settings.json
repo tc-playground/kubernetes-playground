@@ -1,6 +1,11 @@
 {
     "cSpell.words": [
+        "Fluentd",
         "Kubeadm",
-        "Kubespray"
+        "Kubespray",
+        "dataoutputs",
+        "datasources",
+        "failover",
+        "logshipper"
     ]
 }
